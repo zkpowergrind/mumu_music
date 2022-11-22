@@ -329,7 +329,7 @@ export function num_steps_from_scale_degree(
   var abs_steps = Math.abs(num_steps)
   var sum: number = 0
   var currentstep: number
-  var reverse_mode: number[] = mode.reverse()
+  var reverse_mode: number[] = [...mode].reverse()
   var inverted_scale_degree =
     (mode.length - 1 - Math.abs(scale_degree)) % mode.length
 
