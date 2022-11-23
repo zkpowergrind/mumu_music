@@ -32,23 +32,10 @@ export var naturalminor_arr = [2, 1, 2, 2, 2, 2, 2]
 export var chromatic_arr = [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
 export var pentatonic_arr = [2, 2, 3, 2, 3] // No avoid notes
 
-// index chords from light to dark 0 - bright 7, arr.length dark
-
-export var light_to_dark_mode_arr = [
-  pentatonic_arr,
-  lydian_steps_arr,
-  major_steps_arr,
-  mixolydian_plus_11_arr,
-  dorian_steps_arr,
-  aeolian_steps_arr,
-  phrygian_steps_arr,
-  locrian_steps_arr,
-  //melodic minor would make 8 vales corresponding to each cell
-] // No avoid notes
-
 /*
-DICT CURRENTLY NOT RETURNING CORRECT VALUES FOR GIVEN KEY
+Mapped version of modes
 */
+
 export var mode_dict = new Map<string, number[]>()
 
 mode_dict.set("major", [2, 2, 1, 2, 2, 2, 1])
@@ -67,9 +54,9 @@ mode_dict.set("chromatic", chromatic_arr)
 mode_dict.set("pentatonic", pentatonic_arr)
 
 /*
-THIS MAP RETURNS DIFFERENT VALUES FOR THE SAME KEY UPON DIFFERENT COMPILATIONS - MOVING TO DICTIONARY 
-FOR NOW
+String Indexes Mapping
 */
+
 export const modes: { [name: string]: number[] } = {}
 
 modes.major = [2, 2, 1, 2, 2, 2, 1] //avoid notes scale degree 3
@@ -102,6 +89,19 @@ cycle_of_fifths_modes.lydian = modes.lydian
  https://guitarchitecture.org/2011/10/02/the-guitarchitect%E2%80%99s-guide-to-modes-part-the-circle-of-5ths-modal-interchange-and-making-the-most-of-one-pattern/
 */
 
+// index chords from light to dark 0 - bright 7, arr.length dark
+
+export var light_to_dark_mode_arr = [
+  pentatonic_arr,
+  lydian_steps_arr,
+  major_steps_arr,
+  mixolydian_plus_11_arr,
+  dorian_steps_arr,
+  aeolian_steps_arr,
+  phrygian_steps_arr,
+  locrian_steps_arr, //could swap with melodic minor
+] 
+
 export let lighter_to_dark_modes: { [name: string]: number[] } = {}
 
 lighter_to_dark_modes.lydian = modes.lydian
@@ -111,6 +111,23 @@ lighter_to_dark_modes.dorian = modes.dorian
 lighter_to_dark_modes.aeolian = modes.aeolian
 lighter_to_dark_modes.phrygian = modes.phrygian
 lighter_to_dark_modes.locrian = modes.locrian
+
+/*
+ Modes sorted by lighter to dark quality
+ Indexed 0-7 ; Equal to grid dimensions
+*/
+
+export var lighter_to_dark_modes_arr = [
+  modes.pentatonic, 
+  modes.lydian, 
+  modes.major, 
+  modes.mixolydian_plus_11, 
+  modes.dorian, 
+  modes.aeolian, 
+  modes.phrygian, 
+  modes.locrian
+] 
+
 
 /*
  Current PitchClass map for the 7X7 Matrix grid emulating Guqin Fretboard. Ultimately these will be recomputed by formulas to reduce transposistions/computations
@@ -137,7 +154,7 @@ var guqin_grid_notes = [
  more info at: https://ledgernote.com/columns/music-theory/circle-of-fifths-explained/
 */
 
-const chord_map = [
+export const chord_map = [
   [0, 7, 2, 9, 4, 11, 6, 1, 8, 3, 10, 5], //major modes/chords
   [9, 4, 11, 6, 1, 8, 3, 10, 5, 0, 7, 2], //minor modes/chords
 ] as const
@@ -185,6 +202,29 @@ export class PitchClass {
 
   pcToKeynum(): number {
     return this.note + octavebase * (1 + this.octave)
+  }
+
+  scaleDegree( tonic: PitchClass, mode: number[]): number {
+
+    var key_arr: number[] = get_notes_of_key(tonic, mode)
+
+    return key_arr.indexOf(this.note) 
+  }
+
+  modalTransposition(steps: number, tonic: PitchClass, mode: number[]): number {
+
+    var key_arr: number[] = get_notes_of_key(tonic, mode)
+    var scaledegree: number = key_arr.indexOf(this.note)
+    var keyn = this.note + octavebase * (1 + this.octave)
+
+    var total_steps: number = num_steps_from_scale_degree(
+      scaledegree,
+      steps,
+      tonic,
+      mode
+    )
+
+    return keyn + total_steps
   }
 
   // Converts MIDI keynum to note value
@@ -295,10 +335,7 @@ export function get_scale_degree(
   tonic: PitchClass,
   mode: Array<number>
 ) {
-  var summ: number = 0
-
   var key_arr: number[] = get_notes_of_key(tonic, mode)
-
   var index = key_arr.indexOf(pc.note)
 
   return index
@@ -324,21 +361,21 @@ export function num_steps_from_scale_degree(
   scale_degree: number,
   num_steps: number,
   tonic: PitchClass,
-  mode: Array<number>
+  mode: number[]
 ) {
   var abs_steps = Math.abs(num_steps)
   var sum: number = 0
   var currentstep: number
-  var reverse_mode: number[] = [...mode].reverse()
+  var reverse_mode: number[] = mode.reverse()
   var inverted_scale_degree =
     (mode.length - 1 - Math.abs(scale_degree)) % mode.length
 
-  console.log("scale degree inverted" + inverted_scale_degree)
+  // console.log("scale degree inverted" + inverted_scale_degree)
 
   for (var i = 0; i < abs_steps; i++) {
     if (num_steps < 0) {
       var currentstep = (inverted_scale_degree + Math.abs(i)) % mode.length
-      sum = sum + reverse_mode[currentstep]
+      sum = sum - reverse_mode[currentstep]
     } else {
       var currentstep = (scale_degree + i) % mode.length
       sum = sum + mode[currentstep]
@@ -348,62 +385,23 @@ export function num_steps_from_scale_degree(
   return sum
 }
 
+// 
 export function modaltransposition(
   keynum: number,
   num_steps: number,
   tonic: PitchClass,
-  mode: Array<number>
+  mode1: number[]
 ) {
-  var scale_degree: number = keynum_to_scale_degree(keynum, tonic, mode)
+  var scale_degree: number = keynum_to_scale_degree(keynum, tonic, mode1)
   console.log("scale degree " + scale_degree)
-  console.log("mode " + mode)
+  console.log("mode : " + mode1)
 
   var total_steps: number = num_steps_from_scale_degree(
     scale_degree,
     num_steps,
     tonic,
-    mode
+    mode1
   )
 
   return keynum + total_steps
-}
-
-/*
- Bi-Modal Transpostion 
- Functions to calculate transposition of a PitchClass from (tonic+mode) to a (tonic+mode) 
- Useful for changing keys when certain alchemy events occur
-*/
-
-export function bi_modaltransposition(
-  keynum: number,
-  num_steps: number,
-  tonic: PitchClass,
-  mode: Array<number>
-) {
-  var scale_degree: number = keynum_to_scale_degree(keynum, tonic, mode)
-  var num_steps: number = num_steps_from_scale_degree(
-    scale_degree,
-    num_steps,
-    tonic,
-    mode
-  )
-
-  return keynum + num_steps
-}
-
-export function modulatePitchClass(
-  keynum: number,
-  num_steps: number,
-  tonic: PitchClass,
-  mode: Array<number>
-) {
-  var scale_degree: number = keynum_to_scale_degree(keynum, tonic, mode)
-  var num_steps: number = num_steps_from_scale_degree(
-    scale_degree,
-    num_steps,
-    tonic,
-    mode
-  )
-
-  return keynum + num_steps
 }
